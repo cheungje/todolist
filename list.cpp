@@ -12,11 +12,25 @@
 #include <cppconn/exception.h>
 #include <cppconn/resultset.h>
 #include <cppconn/statement.h>
+#include <cppconn/prepared_statement.h>
 
 using namespace std;
 
 
 int main(){
+
+    sql::Driver *driver;
+    sql::Connection *con;
+    sql::Statement *stmt;
+    sql::ResultSet *res;
+    sql::PreparedStatement *prep_stmt;
+
+    /* Create a connection */
+    driver = get_driver_instance();
+    con = driver->connect("tcp://127.0.0.1:3306", "root", "netfab@6dpmCcAA");
+    /* Connect to the database */
+    con->setSchema("todolist"); 
+    
     
     string name;
     cout << "Please enter your name: ";
@@ -35,15 +49,31 @@ int main(){
 
         getline(cin, instruction);
 
+        cout << "SOMETHING RANDOM" << endl;
+
         //Add the task 
         if (instruction == "A")
         {
-            cout << "Add task: ";
-            string userInput;
-            getline(cin, userInput);
-            Task task;
-            task.name = userInput;
-            taskList.push_back(task);
+            prep_stmt = con->prepareStatement("INSERT INTO tasks (name, starred) VALUES (?, ?)");
+            string taskToInsert;
+            string isStarred;
+            bool starredBool = false;
+            cout << "Enter the task that you want to insert: ";
+            getline(cin, taskToInsert);
+            prep_stmt->setString(1, taskToInsert);
+            cout << "Enter \"true\" if the task is to be starred. Enter \"false\" if the task is not THAT important: ";
+            getline(cin, isStarred);
+            if (isStarred == "true") {
+                starredBool = true;
+            }
+            prep_stmt->setBoolean(2, starredBool);
+            prep_stmt->execute();
+            delete prep_stmt;
+
+
+                // stmt = con->createStatement();
+                // stmt->execute("INSERT INTO tasks (name) VALUES (\"be good to Jack\")");
+                // delete stmt;    
         }
         
         //Go through taskList and star the item by appending it to the ending
@@ -74,21 +104,10 @@ int main(){
         } 
 
     try {
-        sql::Driver *driver;
-        sql::Connection *con;
-        sql::Statement *stmt;
-        sql::ResultSet *res;
-        sql::PreparedStatement *prep_stmt;
         
-        /* Create a connection */
-        driver = get_driver_instance();
-        con = driver->connect("tcp://127.0.0.1:3306", "root", "netfab@6dpmCcAA");
-        /* Connect to the database */
-        con->setSchema("todolist"); 
 
         stmt = con->createStatement();
         res = stmt->executeQuery("SELECT * FROM tasks");
-        cout << res->getString("name");
 
         while (res->next()) {
             //Access column data by alias or column name 
