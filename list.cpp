@@ -3,7 +3,6 @@
 #include <sstream>
 #include <vector>
 #include <string>
-#include "taskClass.h"
 
 /* MySQL Connector/C++ specific headers */
 #include "mysql_connection.h"
@@ -13,34 +12,43 @@
 #include <cppconn/resultset.h>
 #include <cppconn/statement.h>
 #include <cppconn/prepared_statement.h>
-
 using namespace std;
 
 
-int main(){
-
+int main() {
     sql::Driver *driver;
     sql::Connection *con;
     sql::Statement *stmt;
     sql::ResultSet *res;
     sql::PreparedStatement *prep_stmt;
 
-    /* Create a connection */
+    // Create a connection 
     driver = get_driver_instance();
     con = driver->connect("tcp://127.0.0.1:3306", "root", "netfab@6dpmCcAA");
-    /* Connect to the database */
+    // Connect to the database 
     con->setSchema("todolist"); 
     
-    
-    string name;
-    cout << "Please enter your name: ";
-    getline(cin, name);
-    cout << "Hello " << name << ", what would you like to do? " << endl;
-
-    vector<Task> taskList;
     string instruction;
 
     do {
+        //Display the tasks list 
+        stmt = con->createStatement();
+        res = stmt->executeQuery("SELECT * FROM tasks ORDER BY starred desc");
+
+        while (res->next()) {
+            //Access column data by alias or column name 
+            cout << "[ ] ";
+            cout << res->getString("name");
+            if (res->getBoolean("starred")) {
+                cout << " *";
+            }
+            cout << endl;
+        }
+        cout << endl;
+
+        delete res;
+
+        cout << "Hello Jennifer, what would you like to do? " << endl;
         //Display menu 
         cout << "[A]dd task" << endl;
         cout << "[S]tar a task" << endl;
@@ -49,9 +57,7 @@ int main(){
 
         getline(cin, instruction);
 
-        cout << "SOMETHING RANDOM" << endl;
-
-        //Add the task 
+        // Add the task 
         if (instruction == "A")
         {
             prep_stmt = con->prepareStatement("INSERT INTO tasks (name, starred) VALUES (?, ?)");
@@ -69,69 +75,35 @@ int main(){
             prep_stmt->setBoolean(2, starredBool);
             prep_stmt->execute();
             delete prep_stmt;
-
-
-                // stmt = con->createStatement();
-                // stmt->execute("INSERT INTO tasks (name) VALUES (\"be good to Jack\")");
-                // delete stmt;    
         }
         
-        //Go through taskList and star the item by appending it to the ending
+        // Update (Star the task) 
         else if (instruction == "S") 
         {
+            prep_stmt = con->prepareStatement("UPDATE tasks SET starred = true WHERE name COLLATE utf8mb4_unicode_ci LIKE ?");
+            string taskToStar;
             cout << "Enter the task that you want to star: ";
-            string taskToStar; 
             getline(cin, taskToStar);
-            for (int i = 0; i < taskList.size(); ++i)
-            {
-                if (taskList[i].name == taskToStar)
-                    taskList[i].starred = true;
-            }
+            prep_stmt->setString(1, taskToStar);
+            prep_stmt->execute();
+            delete prep_stmt;
         }
 
+        // Delete the task 
         else if (instruction == "D")
         {
+            prep_stmt = con->prepareStatement("DELETE from tasks where name COLLATE utf8mb4_unicode_ci LIKE ?");
+            //case insensitivity 
             cout << "Enter the task that you want to delete: ";
             string taskToDelete;
             getline(cin, taskToDelete);
-            for (int i = 0; i < taskList.size(); ++i)
-            {
-                if (taskList[i].name == taskToDelete)
-                {
-                    taskList[i].name = "none";
-                }
-            }
+            prep_stmt->setString(1, taskToDelete);
+            prep_stmt->execute();
+            delete prep_stmt;
         } 
 
-    try {
-        
+    } while (instruction != "STOP");
 
-        stmt = con->createStatement();
-        res = stmt->executeQuery("SELECT * FROM tasks");
-
-        while (res->next()) {
-            //Access column data by alias or column name 
-            cout << "[ ] ";
-            cout << res->getString("name");
-            if (res->getBoolean("starred") ) {
-                cout << " *";
-            }
-            cout << endl;
-        } 
-
-        delete res;
-        delete stmt;
-        delete con;
-
-        } catch (sql::SQLException &e) {
-        cout << "# ERR: SQLException in " << __FILE__;
-        cout << "(" << __FUNCTION__ << ") on line "
-            << __LINE__ << endl;
-        cout << "# ERR: " << e.what();
-        cout << " (MySQL error code: " << e.getErrorCode();
-        cout << ", SQLState: " << e.getSQLState() << " )" << endl;
-        }
-}
-
-    while (instruction != "STOP");
+    delete stmt;
+    delete con;
 }
