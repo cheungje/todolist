@@ -88,8 +88,10 @@ int main() {
         return crow::response(204);
     });
 
-    //Update a task to be starred corresponding to the task ID 
+    //Update a task's starred, due_date, and name corresponding to the task ID 
+    //PUT method is to insert and update
     CROW_ROUTE(app, "/tasks/<int>").methods("PUT"_method)([&](const crow::request& req, int taskId) {
+        //selects the unique task to be updated 
         prep_stmt = con->prepareStatement("select * from tasks where id = ?");
         prep_stmt->setInt(1, taskId);
         res = prep_stmt->executeQuery();
@@ -130,6 +132,7 @@ int main() {
         prep_stmt->setString(3, due_date);
         prep_stmt->setInt(4, taskId);
         prep_stmt->execute();
+        delete prep_stmt;
 
 
         //returning the task that was updated 
@@ -141,7 +144,84 @@ int main() {
         return crow::response(x);
     });
 
+
+    //Create a new task //POST is to insert 
+    CROW_ROUTE(app, "/tasks").methods("POST"_method)([&](const crow::request& req) {
+        //create a body to insert into the table
+        auto body = crow::json::load(req.body);
+
+        string name;
+        if (body.count("name") != 0) {
+            name = body["name"].s(); //.s() method changes the output of body["name"] into string 
+        }
+
+        string due_date;
+        if (body.count("due_date") != 0) {
+            due_date = body["due_date"].s();
+        }
+
+        bool starred = false;
+         if (body.count("starred") != 0) {
+            starred = body["starred"].b(); //.b() method changes the output of body["starred"] into boolean
+        }
+
+        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred) VALUES (?, ?, ?)");
+        prep_stmt->setString(1, name);
+        prep_stmt->setString(2, due_date);
+        prep_stmt->setBoolean(3, starred);
+        res = prep_stmt->executeQuery();
+        delete prep_stmt;
+
+        stmt = con->createStatement();
+        res = stmt->executeQuery("SELECT @@identity AS id");
+        res->next();
+
+
+        crow::json::wvalue x; //json object 
+        x["id"] = res->getInt("id");
+        x["name"] = name;
+        x["due_date"] = due_date;
+        x["starred"] = starred;
+    
+        delete res;
+        return crow::response(x);
+    });
+
+    //Filter on the GET /tasks endpoint to only return starred tasks 
+    CROW_ROUTE(app, "/tasks_starred")([&](){
+        stmt = con->createStatement();
+        res = stmt->executeQuery("SELECT * FROM tasks WHERE starred = 1");
+
+        crow::json::wvalue result;
+        int count = 0;
+
+        //fill vector
+        while (res->next()) {
+            result[count]["name"] = res->getString("name");
+            result[count]["id"] = res->getInt("id");
+            result[count]["due_date"] = res->getString("due_date");
+            result[count]["starred"] = res->getString("starred");
+            count++;
+        }
+
+        delete res;
+        return crow::response(result);
+
+
+    });
+
+
+
+    
     app.port(18080).multithreaded().run();
+
+
+
+
+
+
+
+
     
     // string instruction;
 
