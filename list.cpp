@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <sstream>
 
 /* Crow */
 #include "crow_all.h"
@@ -38,9 +39,52 @@ int main() {
 
 
     //Displays the entire tasks table 
-    CROW_ROUTE(app, "/tasks")([&]() {
-        stmt = con->createStatement();
-        res = stmt->executeQuery("SELECT * FROM tasks ORDER BY starred desc");
+    CROW_ROUTE(app, "/tasks")([&](const crow::request& req) {
+        ostringstream ss;
+        ss << "SELECT * FROM tasks";
+
+        vector<int> values;
+
+        if (req.url_params.get("starred") != nullptr || req.url_params.get("completed") != nullptr) {
+            ss << " WHERE true";
+        }
+
+        if (req.url_params.get("starred") != nullptr) {
+            string starred = req.url_params.get("starred");
+            int starred_value = -1;
+
+            if (strcmp(starred.c_str(), "true") == 0) {
+                starred_value = 1;
+            } else if (strcmp(starred.c_str(), "false") == 0) {
+                starred_value = 0;
+            }
+
+            ss << " AND starred = ?";
+            values.push_back(starred_value);
+        }
+
+        if (req.url_params.get("completed") != nullptr) {
+            string completed = req.url_params.get("completed");
+            int completed_value = -1;
+
+            if (strcmp(completed.c_str(), "true") == 0) {
+                completed_value = 1;
+            } else if (strcmp(completed.c_str(), "false") == 0) {
+                completed_value = 0;
+            }
+
+            ss << " AND completed = ?";
+            values.push_back(completed_value);
+        }
+
+        prep_stmt = con->prepareStatement(ss.str());
+
+        for (int i = 1; i < values.size() + 1; i++) {
+            prep_stmt->setInt(i, values[i - 1]);
+        }
+
+        res = prep_stmt->executeQuery();
+        delete prep_stmt;
 
         crow::json::wvalue result;
         int count = 0;
@@ -50,7 +94,8 @@ int main() {
             result[count]["name"] = res->getString("name");
             result[count]["id"] = res->getInt("id");
             result[count]["due_date"] = res->getString("due_date");
-            result[count]["starred"] = res->getString("starred");
+            result[count]["starred"] = res->getBoolean("starred");
+            result[count]["completed"] = res->getBoolean("completed");
             count++;    
         }
 
@@ -72,6 +117,7 @@ int main() {
             x["id"] = res->getInt("id");
             x["due_date"] = res->getString("due_date");
             x["starred"] = res->getBoolean("starred");
+            x["completed"] = res->getBoolean("completed");
             return crow::response(x);
         } else {
             return crow::response(404);
@@ -102,10 +148,9 @@ int main() {
             return crow::response(404); //404 means something cannot be found 
         }
 
-        bool starred = res->getBoolean("starred"); //original value of starred 
-
         auto body = crow::json::load(req.body); //imagine body as a map of <key, value>
 
+        bool starred = res->getBoolean("starred"); //original value of starred 
         if (body.count("starred") != 0) {
             starred = body["starred"].b(); //.b() method changes the output of body["starred"] into boolean
             // if (body["starred"] == true) {
@@ -125,12 +170,18 @@ int main() {
             due_date = body["due_date"].s();
         }
 
+        bool completed = res->getBoolean("completed");
+        if (body.count("completed") != 0) {
+            completed = body["completed"].b();
+        }
 
-        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ? WHERE id = ?");
+
+        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ?, completed = ? WHERE id = ?");
         prep_stmt->setBoolean(1, starred);
         prep_stmt->setString(2, name);
         prep_stmt->setString(3, due_date);
-        prep_stmt->setInt(4, taskId);
+        prep_stmt->setBoolean(4, completed);
+        prep_stmt->setInt(5, taskId);
         prep_stmt->execute();
         delete prep_stmt;
 
@@ -141,6 +192,7 @@ int main() {
         x["id"] = taskId;
         x["due_date"] = due_date;
         x["starred"] = starred;
+        x["completed"] = completed;
         return crow::response(x);
     });
 
@@ -165,10 +217,16 @@ int main() {
             starred = body["starred"].b(); //.b() method changes the output of body["starred"] into boolean
         }
 
-        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred) VALUES (?, ?, ?)");
+        bool completed = res->getBoolean("completed");
+        if (body.count("completed") != 0) {
+            completed = body["completed"].b();
+        }
+
+        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred, completed) VALUES (?, ?, ?, ?)");
         prep_stmt->setString(1, name);
         prep_stmt->setString(2, due_date);
         prep_stmt->setBoolean(3, starred);
+        prep_stmt->setBoolean(4, completed);
         res = prep_stmt->executeQuery();
         delete prep_stmt;
 
@@ -182,124 +240,14 @@ int main() {
         x["name"] = name;
         x["due_date"] = due_date;
         x["starred"] = starred;
+        x["completed"] = completed;
     
         delete res;
         return crow::response(x);
     });
-
-    //Filter on the GET /tasks endpoint to only return starred tasks 
-    CROW_ROUTE(app, "/tasks_starred")([&](){
-        stmt = con->createStatement();
-        res = stmt->executeQuery("SELECT * FROM tasks WHERE starred = 1");
-
-        crow::json::wvalue result;
-        int count = 0;
-
-        //fill vector
-        while (res->next()) {
-            result[count]["name"] = res->getString("name");
-            result[count]["id"] = res->getInt("id");
-            result[count]["due_date"] = res->getString("due_date");
-            result[count]["starred"] = res->getString("starred");
-            count++;
-        }
-
-        delete res;
-        return crow::response(result);
-
-
-    });
-
-
-
     
     app.port(18080).multithreaded().run();
 
-
-
-
-
-
-
-
-    
-    // string instruction;
-
-    // do {
-    //     //Display the tasks list 
-    //     stmt = con->createStatement();
-    //     res = stmt->executeQuery("SELECT * FROM tasks ORDER BY starred desc");
-
-    //     while (res->next()) {
-    //         //Access column data by alias or column name 
-    //         cout << "[ ] ";
-    //         cout << res->getString("name");
-    //         if (res->getBoolean("starred")) {
-    //             cout << " *";
-    //         }
-    //         cout << endl;
-    //     }
-    //     cout << endl;
-
-    //     delete res;
-
-    //     cout << "Hello Jennifer, what would you like to do? " << endl;
-    //     //Display menu 
-    //     cout << "[A]dd task" << endl;
-    //     cout << "[S]tar a task" << endl;
-    //     cout << "[D]elete a task" << endl;
-    //     cout << "Type STOP to exit at any point to exit the program" << endl << endl;
-
-    //     getline(cin, instruction);
-
-    //     // Add the task 
-    //     if (instruction == "A")
-    //     {
-    //         prep_stmt = con->prepareStatement("INSERT INTO tasks (name, starred) VALUES (?, ?)");
-    //         string taskToInsert;
-    //         string isStarred;
-    //         bool starredBool = false;
-    //         cout << "Enter the task that you want to insert: ";
-    //         getline(cin, taskToInsert);
-    //         prep_stmt->setString(1, taskToInsert);
-    //         cout << "Enter \"true\" if the task is to be starred. Enter \"false\" if the task is not THAT important: ";
-    //         getline(cin, isStarred);
-    //         if (isStarred == "true") {
-    //             starredBool = true;
-    //         }
-    //         prep_stmt->setBoolean(2, starredBool);
-    //         prep_stmt->execute();
-    //         delete prep_stmt;
-    //     }
-        
-    //     // Update (Star the task) 
-    //     else if (instruction == "S") 
-    //     {
-    //         prep_stmt = con->prepareStatement("UPDATE tasks SET starred = true WHERE name COLLATE utf8mb4_unicode_ci LIKE ?");
-    //         string taskToStar;
-    //         cout << "Enter the task that you want to star: ";
-    //         getline(cin, taskToStar);
-    //         prep_stmt->setString(1, taskToStar);
-    //         prep_stmt->execute();
-    //         delete prep_stmt;
-    //     }
-
-    //     // Delete the task 
-    //     else if (instruction == "D")
-    //     {
-    //         prep_stmt = con->prepareStatement("DELETE from tasks where name COLLATE utf8mb4_unicode_ci LIKE ?");
-    //         //case insensitivity 
-    //         cout << "Enter the task that you want to delete: ";
-    //         string taskToDelete;
-    //         getline(cin, taskToDelete);
-    //         prep_stmt->setString(1, taskToDelete);
-    //         prep_stmt->execute();
-    //         delete prep_stmt;
-    //     } 
-
-    // } while (instruction != "STOP");
-
-    //delete stmt;
      delete con;
      
 }
