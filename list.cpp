@@ -96,12 +96,15 @@ int main() {
             result[count]["due_date"] = res->getString("due_date");
             result[count]["starred"] = res->getBoolean("starred");
             result[count]["completed"] = res->getBoolean("completed");
+            result[count]["notes"] = res->getString("notes");
             count++;    
         }
 
         delete res;
 
-        return crow::response(result);
+        crow::response r = crow::response(result);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        return r;
     });
 
     //Displays the task corresponding to the task number the user entered 
@@ -118,6 +121,7 @@ int main() {
             x["due_date"] = res->getString("due_date");
             x["starred"] = res->getBoolean("starred");
             x["completed"] = res->getBoolean("completed");
+            x["notes"] = res->getString("notes");
             return crow::response(x);
         } else {
             return crow::response(404);
@@ -134,7 +138,15 @@ int main() {
         return crow::response(204);
     });
 
-    //Update a task's starred, due_date, and name corresponding to the task ID 
+    CROW_ROUTE(app, "/tasks/<int>").methods("OPTIONS"_method)([&](int taskId) {
+        crow::response r = crow::response(204);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        r.add_header("Access-Control-Allow-Methods", "PUT");
+        r.add_header("Access-Control-Allow-Headers", "Content-Type");
+        return r;
+    });
+
+    //Update a task's starred, due_date, name, and notes corresponding to the task ID 
     //PUT method is to insert and update
     CROW_ROUTE(app, "/tasks/<int>").methods("PUT"_method)([&](const crow::request& req, int taskId) {
         //selects the unique task to be updated 
@@ -175,13 +187,19 @@ int main() {
             completed = body["completed"].b();
         }
 
+        string notes = res->getString("notes");
+        if (body.count("notes") != 0) {
+            notes = body["notes"].s();
+        }
 
-        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ?, completed = ? WHERE id = ?");
+
+        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ?, completed = ?, notes = ? WHERE id = ?");
         prep_stmt->setBoolean(1, starred);
         prep_stmt->setString(2, name);
         prep_stmt->setString(3, due_date);
         prep_stmt->setBoolean(4, completed);
-        prep_stmt->setInt(5, taskId);
+        prep_stmt->setString(5, notes);
+        prep_stmt->setInt(6, taskId);
         prep_stmt->execute();
         delete prep_stmt;
 
@@ -193,21 +211,32 @@ int main() {
         x["due_date"] = due_date;
         x["starred"] = starred;
         x["completed"] = completed;
-        return crow::response(x);
+        x["notes"] = notes;
+        
+        crow::response r = crow::response(x);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        return r;
     });
 
+    CROW_ROUTE(app, "/tasks").methods("OPTIONS"_method)([&]() {
+        crow::response r = crow::response(204);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        r.add_header("Access-Control-Allow-Methods", "POST");
+        r.add_header("Access-Control-Allow-Headers", "Content-Type");
+        return r;
+    });
 
     //Create a new task //POST is to insert 
     CROW_ROUTE(app, "/tasks").methods("POST"_method)([&](const crow::request& req) {
         //create a body to insert into the table
         auto body = crow::json::load(req.body);
 
-        string name;
+        string name = "";
         if (body.count("name") != 0) {
             name = body["name"].s(); //.s() method changes the output of body["name"] into string 
         }
 
-        string due_date;
+        string due_date = "current_timestamp";
         if (body.count("due_date") != 0) {
             due_date = body["due_date"].s();
         }
@@ -217,16 +246,23 @@ int main() {
             starred = body["starred"].b(); //.b() method changes the output of body["starred"] into boolean
         }
 
-        bool completed = res->getBoolean("completed");
+        bool completed = false;
         if (body.count("completed") != 0) {
             completed = body["completed"].b();
         }
 
-        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred, completed) VALUES (?, ?, ?, ?)");
+        string notes = "";
+        if (body.count("notes") != 0) {
+            notes = body["notes"].s(); 
+        }
+
+
+        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred, completed, notes) VALUES (?, ?, ?, ?, ?)");
         prep_stmt->setString(1, name);
         prep_stmt->setString(2, due_date);
         prep_stmt->setBoolean(3, starred);
         prep_stmt->setBoolean(4, completed);
+        prep_stmt->setString(5, notes);
         res = prep_stmt->executeQuery();
         delete prep_stmt;
 
@@ -241,13 +277,16 @@ int main() {
         x["due_date"] = due_date;
         x["starred"] = starred;
         x["completed"] = completed;
+        x["notes"] = notes;
     
         delete res;
-        return crow::response(x);
+        
+        crow::response r = crow::response(x);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        return r;
     });
     
     app.port(18080).multithreaded().run();
 
      delete con;
-     
 }
