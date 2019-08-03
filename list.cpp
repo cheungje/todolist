@@ -207,7 +207,7 @@ int main() {
 
         bool isTrashed = res->getBoolean("isTrashed");
         if (body.count("isTrashed") != 0) {
-            completed = body["isTrashed"].b();
+            isTrashed = body["isTrashed"].b();
         }
 
 
@@ -279,7 +279,7 @@ int main() {
         
         bool isTrashed = false;
         if (body.count("isTrashed") != 0) {
-            completed = body["isTrashed"].b();
+            isTrashed = body["isTrashed"].b();
         }
 
         string notes = "";
