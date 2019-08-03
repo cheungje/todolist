@@ -77,9 +77,23 @@ int main() {
             values.push_back(completed_value);
         }
 
+        if (req.url_params.get("isTrashed") != nullptr) {
+            string completed = req.url_params.get("isTrashed");
+            int isTrashed_value = -1;
+
+            if (strcmp(completed.c_str(), "true") == 0) {
+                isTrashed_value = 1;
+            } else if (strcmp(completed.c_str(), "false") == 0) {
+                isTrashed_value = 0;
+            }
+
+            ss << " AND isTrashed = ?";
+            values.push_back(isTrashed_value);
+        }
+
         prep_stmt = con->prepareStatement(ss.str());
 
-        for (int i = 1; i < values.size() + 1; i++) {
+        for (size_t i = 1; i < values.size() + 1; i++) {
             prep_stmt->setInt(i, values[i - 1]);
         }
 
@@ -96,6 +110,7 @@ int main() {
             result[count]["due_date"] = res->getString("due_date");
             result[count]["starred"] = res->getBoolean("starred");
             result[count]["completed"] = res->getBoolean("completed");
+            result[count]["isTrashed"] = res->getBoolean("isTrashed");
             result[count]["notes"] = res->getString("notes");
             count++;    
         }
@@ -121,6 +136,7 @@ int main() {
             x["due_date"] = res->getString("due_date");
             x["starred"] = res->getBoolean("starred");
             x["completed"] = res->getBoolean("completed");
+            x["isTrashed"] = res->getBoolean("isTrashed");            
             x["notes"] = res->getString("notes");
             return crow::response(x);
         } else {
@@ -135,18 +151,20 @@ int main() {
         prep_stmt->execute();
         delete prep_stmt;
 
-        return crow::response(204);
+        crow::response r = crow::response(204);
+        r.add_header("Access-Control-Allow-Origin", "*");
+        return r;
     });
 
     CROW_ROUTE(app, "/tasks/<int>").methods("OPTIONS"_method)([&](int taskId) {
         crow::response r = crow::response(204);
         r.add_header("Access-Control-Allow-Origin", "*");
-        r.add_header("Access-Control-Allow-Methods", "PUT");
+        r.add_header("Access-Control-Allow-Methods", "PUT,DELETE");
         r.add_header("Access-Control-Allow-Headers", "Content-Type");
         return r;
     });
 
-    //Update a task's starred, due_date, name, and notes corresponding to the task ID 
+    //Update a task's name, due_date, starred, completed, isTrashed, and notes corresponding to the task ID 
     //PUT method is to insert and update
     CROW_ROUTE(app, "/tasks/<int>").methods("PUT"_method)([&](const crow::request& req, int taskId) {
         //selects the unique task to be updated 
@@ -187,19 +205,26 @@ int main() {
             completed = body["completed"].b();
         }
 
+        bool isTrashed = res->getBoolean("isTrashed");
+        if (body.count("isTrashed") != 0) {
+            completed = body["isTrashed"].b();
+        }
+
+
         string notes = res->getString("notes");
         if (body.count("notes") != 0) {
             notes = body["notes"].s();
         }
 
 
-        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ?, completed = ?, notes = ? WHERE id = ?");
+        prep_stmt = con->prepareStatement("UPDATE tasks SET starred = ?, name = ?, due_date = ?, completed = ?, isTrashed = ?, notes = ? WHERE id = ?");
         prep_stmt->setBoolean(1, starred);
         prep_stmt->setString(2, name);
         prep_stmt->setString(3, due_date);
         prep_stmt->setBoolean(4, completed);
-        prep_stmt->setString(5, notes);
-        prep_stmt->setInt(6, taskId);
+        prep_stmt->setBoolean(5, isTrashed);
+        prep_stmt->setString(6, notes);
+        prep_stmt->setInt(7, taskId);
         prep_stmt->execute();
         delete prep_stmt;
 
@@ -211,6 +236,7 @@ int main() {
         x["due_date"] = due_date;
         x["starred"] = starred;
         x["completed"] = completed;
+        x["isTrashed"] = isTrashed;
         x["notes"] = notes;
         
         crow::response r = crow::response(x);
@@ -250,6 +276,11 @@ int main() {
         if (body.count("completed") != 0) {
             completed = body["completed"].b();
         }
+        
+        bool isTrashed = false;
+        if (body.count("isTrashed") != 0) {
+            completed = body["isTrashed"].b();
+        }
 
         string notes = "";
         if (body.count("notes") != 0) {
@@ -257,12 +288,13 @@ int main() {
         }
 
 
-        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred, completed, notes) VALUES (?, ?, ?, ?, ?)");
+        prep_stmt = con->prepareStatement("INSERT INTO tasks (name, due_date, starred, completed, isTrashed, notes) VALUES (?, ?, ?, ?, ?, ?)");
         prep_stmt->setString(1, name);
         prep_stmt->setString(2, due_date);
         prep_stmt->setBoolean(3, starred);
         prep_stmt->setBoolean(4, completed);
-        prep_stmt->setString(5, notes);
+        prep_stmt->setBoolean(5, isTrashed);
+        prep_stmt->setString(6, notes);
         res = prep_stmt->executeQuery();
         delete prep_stmt;
 
@@ -277,6 +309,7 @@ int main() {
         x["due_date"] = due_date;
         x["starred"] = starred;
         x["completed"] = completed;
+        x["isTrashed"] = isTrashed;
         x["notes"] = notes;
     
         delete res;
