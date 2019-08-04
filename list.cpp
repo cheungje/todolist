@@ -45,7 +45,7 @@ int main() {
 
         vector<int> values;
 
-        if (req.url_params.get("starred") != nullptr || req.url_params.get("completed") != nullptr) {
+        if (req.url_params.get("starred") != nullptr || req.url_params.get("completed") != nullptr || req.url_params.get("trashed") != nullptr) {
             ss << " WHERE true";
         }
 
@@ -78,12 +78,12 @@ int main() {
         }
 
         if (req.url_params.get("trashed") != nullptr) {
-            string completed = req.url_params.get("trashed");
+            string trashed = req.url_params.get("trashed");
             int trashed_value = -1;
 
-            if (strcmp(completed.c_str(), "true") == 0) {
+            if (strcmp(trashed.c_str(), "true") == 0) {
                 trashed_value = 1;
-            } else if (strcmp(completed.c_str(), "false") == 0) {
+            } else if (strcmp(trashed.c_str(), "false") == 0) {
                 trashed_value = 0;
             }
 
@@ -92,6 +92,11 @@ int main() {
         }
 
         prep_stmt = con->prepareStatement(ss.str());
+
+        // for (int i = 0; i < values.size(); ++i) {
+        //     cout << values[i] << " ";
+        // }
+
 
         for (size_t i = 1; i < values.size() + 1; i++) {
             prep_stmt->setInt(i, values[i - 1]);
@@ -121,91 +126,6 @@ int main() {
         r.add_header("Access-Control-Allow-Origin", "*");
         return r;
     });
-
-
-    // //Displays all the tasks that have been deleted 
-    //     CROW_ROUTE(app, "/tasks")([&](const crow::request& req) {
-    //     ostringstream ss;
-    //     ss << "SELECT * FROM tasks WHERE trashed IS TRUE";
-
-    //     vector<int> values;
-
-    //     if (req.url_params.get("starred") != nullptr || req.url_params.get("completed") != nullptr) {
-    //         ss << " WHERE true";
-    //     }
-
-    //     if (req.url_params.get("starred") != nullptr) {
-    //         string starred = req.url_params.get("starred");
-    //         int starred_value = -1;
-
-    //         if (strcmp(starred.c_str(), "true") == 0) {
-    //             starred_value = 1;
-    //         } else if (strcmp(starred.c_str(), "false") == 0) {
-    //             starred_value = 0;
-    //         }
-
-    //         ss << " AND starred = ?";
-    //         values.push_back(starred_value);
-    //     }
-
-    //     if (req.url_params.get("completed") != nullptr) {
-    //         string completed = req.url_params.get("completed");
-    //         int completed_value = -1;
-
-    //         if (strcmp(completed.c_str(), "true") == 0) {
-    //             completed_value = 1;
-    //         } else if (strcmp(completed.c_str(), "false") == 0) {
-    //             completed_value = 0;
-    //         }
-
-    //         ss << " AND completed = ?";
-    //         values.push_back(completed_value);
-    //     }
-
-    //     if (req.url_params.get("trashed") != nullptr) {
-    //         string completed = req.url_params.get("trashed");
-    //         int trashed_value = -1;
-
-    //         if (strcmp(completed.c_str(), "true") == 0) {
-    //             trashed_value = 1;
-    //         } else if (strcmp(completed.c_str(), "false") == 0) {
-    //             trashed_value = 0;
-    //         }
-
-    //         ss << " AND trashed = ?";
-    //         values.push_back(trashed_value);
-    //     }
-
-    //     prep_stmt = con->prepareStatement(ss.str());
-
-    //     for (size_t i = 1; i < values.size() + 1; i++) {
-    //         prep_stmt->setInt(i, values[i - 1]);
-    //     }
-
-    //     res = prep_stmt->executeQuery();
-    //     delete prep_stmt;
-
-    //     crow::json::wvalue result;
-    //     int count = 0;
-
-    //     //fill vector 
-    //     while (res->next()) {
-    //         result[count]["name"] = res->getString("name");
-    //         result[count]["id"] = res->getInt("id");
-    //         result[count]["due_date"] = res->getString("due_date");
-    //         result[count]["starred"] = res->getBoolean("starred");
-    //         result[count]["completed"] = res->getBoolean("completed");
-    //         result[count]["trashed"] = res->getBoolean("trashed");
-    //         result[count]["notes"] = res->getString("notes");
-    //         count++;    
-    //     }
-
-    //     delete res;
-
-    //     crow::response r = crow::response(result);
-    //     r.add_header("Access-Control-Allow-Origin", "*");
-    //     return r;
-    // });
 
 
 
